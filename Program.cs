@@ -1,7 +1,9 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using System.Drawing;
+using System.Xml.Serialization;
 using FaceAnalysisApp.FaceDetection;
 using Microsoft.ML.OnnxRuntime;
+using FaceAnalysisApp.Utils;
 
 
 class Program
@@ -38,5 +40,13 @@ class Program
             );
         }
         Console.WriteLine("[INFO] Detection completed.");
+
+        string outputPath = Path.Combine(AppContext.BaseDirectory, "output.jpg");
+        using (var imageCopy = new Bitmap(image))
+        {
+            ImageUtils.DrawDetections(imageCopy, detections, outputPath);
+        }
+
+        Console.WriteLine("[INFO] Drawing completed successfully.");
     }
 }

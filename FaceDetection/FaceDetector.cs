@@ -6,6 +6,7 @@ using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using System.Linq;
 using System.Xml;
+using FaceAnalysisApp;
 
 
 
@@ -91,12 +92,20 @@ namespace FaceAnalysisApp.FaceDetection
         public List<Detection> Postprocess(Dictionary<string, Tensor<float>> outputs, int origWidth, int origHeight,
                                             float confThreshold = 0.25f, float iouThreshold = 0.3f)
         {
-            var scoreTensors = outputs.Where(kv => kv.Value.Dimensions.Length == 2 && kv.Value.Dimensions[1] == 1).Select(kv => kv.Value).ToList();
-            var bboxTensors = outputs.Where(kv => kv.Value.Dimensions.Length == 2 && kv.Value.Dimensions[1] == 4).Select(kv => kv.Value).ToList();
+            var scoreTensors = outputs
+                .Where(kv => kv.Value.Dimensions.Length == 2 && kv.Value.Dimensions[1] == 1)
+                .Select(kv => kv.Value)
+                .ToList();
+            var bboxTensors = outputs
+                .Where(kv => kv.Value.Dimensions.Length == 2 && kv.Value.Dimensions[1] == 4)
+                .Select(kv => kv.Value)
+                .ToList();
+            
             int[] strides = new int[] { 8, 16, 32 };
             List<float[]> scoresList = new List<float[]>();
             var candidates = new List<Detection>();
 
+            // Sigmoid for scores.
             foreach (var tensor in scoreTensors)
             {
                 var data = tensor.ToArray();
@@ -107,6 +116,9 @@ namespace FaceAnalysisApp.FaceDetection
                 scoresList.Add(data);
             }
 
+            float scaleX = (float)origWidth / InputWidth;
+            float scaleY = (float)origHeight / InputHeight;
+
             for (int i = 0; i < bboxTensors.Count; i++)
             {
                 var bboxTensor = bboxTensors[i];
@@ -115,8 +127,8 @@ namespace FaceAnalysisApp.FaceDetection
 
                 int featureW = InputWidth / stride;
                 int featureH = InputHeight / stride;
-
                 int numAnchors = featureH * featureW * 2;
+
                 var bboxData = bboxTensor.ToArray();
 
                 for (int j = 0; j < numAnchors; j++) {
@@ -129,9 +141,13 @@ namespace FaceAnalysisApp.FaceDetection
 
                     float conf = scoreArray[j];
 
+                    int cellIndex = j / 2;
+                    int col = cellIndex % featureW;
+                    int row = cellIndex % featureH;
 
-                    float cx = (j % featureW) * stride;
-                    float cy = (j / featureW) * stride;
+                    float cx = col * stride;
+                    float cy = row * stride;
+
 
                     float x1 = cx - dx1;
                     float y1 = cy - dy1;
@@ -142,7 +158,7 @@ namespace FaceAnalysisApp.FaceDetection
                     {
                         var det = new Detection
                         {
-                            Box = new RectangleF(x1, y1, x2 - x1, y2 - y1),
+                            Box = new RectangleF(x1 * scaleX, y1 * scaleY, (x2 - x1) * scaleX, (y2 - y1) * scaleY),
                             Confidence = conf
                         };
                         candidates.Add(det);
@@ -150,6 +166,8 @@ namespace FaceAnalysisApp.FaceDetection
 
                 }
             }
+
+            //Sort and NMS
             candidates.Sort((a, b) => b.Confidence.CompareTo(a.Confidence));
             var results = new List<Detection>();
 
