@@ -14,6 +14,10 @@
 	  <None Include="models\scrfd_500m.onnx">
 		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </None>
+	  
+	  <None Include="models\scrfd_500m_bnkps.onnx">
+		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
 
 	  <None Include="models\scrfd_2.5g.onnx">
 		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

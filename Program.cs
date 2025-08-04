@@ -1,52 +1,54 @@
-﻿// See https://aka.ms/new-console-template for more information
+﻿using System;
 using System.Drawing;
-using System.Xml.Serialization;
+using System.IO;
 using FaceAnalysisApp.FaceDetection;
-using Microsoft.ML.OnnxRuntime;
-using FaceAnalysisApp.Utils;
-
 
 class Program
 {
-    static void Main()
+    static void Main(string[] args)
     {
-        string modelPath = Path.Combine(AppContext.BaseDirectory, "models", "scrfd_500m.onnx");
+        string modelPath = Path.Combine(AppContext.BaseDirectory, "models", "scrfd_500m_bnkps.onnx");
         Console.WriteLine($"[INFO] Loading model from: {modelPath}");
-
-        var detector = new FaceDetector(modelPath);
-
-        string imagePath = Path.Combine(AppContext.BaseDirectory,"test.jpg");
-        Console.WriteLine($"[INFO] Loading image from: {imagePath}");
-
-        if (!File.Exists(imagePath))
+        if (!File.Exists(modelPath))
         {
-            Console.WriteLine("[ERROR] test.jpg not found in output folder.");
+            Console.WriteLine("[ERROR] Model file not found.");
             return;
         }
 
-        using var image = new Bitmap(imagePath);
+        using var detector = new FaceDetector(modelPath, inputWidth: 640, inputHeight: 640);
 
-        float[] inputData = detector.Preprocess(image);
-        var outputs = detector.RunInference(inputData);
-        var detections = detector.Postprocess(outputs, image.Width, image.Height, confThreshold: 0.6f);
-
-        Console.WriteLine($"Detected {detections.Count} faces:");
-        foreach (var det in detections)
+        string imagePath = Path.Combine(AppContext.BaseDirectory, "test.jpg");
+        Console.WriteLine($"[INFO] Loading image from: {imagePath}");
+        if (!File.Exists(imagePath))
         {
-            var box = det.Box;
-            Console.WriteLine(
-                $"  Box: ({box.X:F1},{box.Y:F1}) - ({box.X + box.Width:F1},{box.Y + box.Height:F1}), " +
-                $"Conf: {det.Confidence:F2}"
-            );
+            Console.WriteLine("[ERROR] test.jpg not found.");
+            return;
         }
-        Console.WriteLine("[INFO] Detection completed.");
+
+        using var image = (Bitmap)Image.FromFile(imagePath);
+
+        var dets = detector.Detect(image, confThreshold: 0.02f, nmsThreshold: 0.4f);
 
         string outputPath = Path.Combine(AppContext.BaseDirectory, "output.jpg");
-        using (var imageCopy = new Bitmap(image))
+        using var imageCopy = new Bitmap(image);
+        using var g = Graphics.FromImage(imageCopy);
+        using var pen = new Pen(Color.Red, 2);
+
+        if (dets.Count > 0)
         {
-            ImageUtils.DrawDetections(imageCopy, detections, outputPath);
+            var best = dets[0];
+            var temp = dets[0];
+            var box = temp.Item1;
+            var score = temp.Item2;
+            g.DrawRectangle(pen, box.X, box.Y, box.Width, box.Height);
+            Console.WriteLine($"Best score = {score:F2}");
+        }
+        else
+        {
+            Console.WriteLine("[INFO] No face above threshold.");
         }
 
-        Console.WriteLine("[INFO] Drawing completed successfully.");
+        imageCopy.Save(outputPath);
+        Console.WriteLine($"[INFO] Result saved to: {outputPath}");
     }
 }
